@@ -48,8 +48,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import importlib.util
 from PIL import Image
 from tqdm import tqdm
-from clickpoints.includes.QtShortCuts import AddQSaveFileChoose
-from deformationcytometer.detection.includes.regionprops import fit_ellipses_regionprops
 from addon_seg_evaluation.base_segmentation_classes import Segmentation, FromOtherDB
 
 
@@ -153,6 +151,15 @@ class Addon(clickpoints.Addon):
         self.coupler = 0.5
         self.pixel_size_camera = 6.9
         self.pixel_size = self.pixel_size_camera/(self.magnification * self.coupler)
+        self.pixel_size  *= 1e-6  #conversion to meter
+        self.r_min = 6 # in µm
+        self.edge_dist = 15 # in µm
+        self.channel_width = 0
+
+        self.solidity_threshold =  0.96
+        self.irregularity_threshold = 1.06
+
+        self.note_filtered =  True # write irregularity and solidtiy down for cells that would have been filtered out by these thresholds
 
         self.db.deleteMaskTypes()
         self.mt1 = self.db.setMaskType(name=self.net1_db_name, color=self.net1_db_color, index=1)
@@ -298,7 +305,8 @@ class Addon(clickpoints.Addon):
                 self.Segmentation1 = self.import_seg_function(self.file1)
                 if not self.Segmentation1 is None:
                     try:
-                        self.Seg1 = self.Segmentation1(pixel_size=self.pixel_size, img_shape=img_shape)
+                        self.Seg1 = self.Segmentation1(
+                            img_shape=img_shape, pixel_size=self.pixel_size, r_min=self.r_min, frame_data=None, edge_dist=self.edge_dist, channel_width=self.channel_width)
                         print("succesfully loaded %s"%self.file1)
                     except OSError as e:
                         print(e)
@@ -312,7 +320,8 @@ class Addon(clickpoints.Addon):
                 self.Segmentation2 = self.import_seg_function(self.file2)
                 if not self.Segmentation2 is None:
                     try:
-                        self.Seg2 = self.Segmentation2(pixel_size=self.pixel_size, img_shape=img_shape)
+                        self.Seg2 = self.Segmentation2(
+                            img_shape=img_shape, pixel_size=self.pixel_size, r_min=self.r_min, frame_data=None, edge_dist=self.edge_dist, channel_width=self.channel_width)
                         print("succesfully loaded %s"%self.file2)
                     except OSError as e:
                         print(e)
@@ -462,6 +471,8 @@ class Addon(clickpoints.Addon):
         else:
             pred_mask2, ellipses2 = self.Seg2.getMaskEllipse(frame)
 
+
+
         # writing prediction to database
         mask_data = pred_mask2.astype(np.uint8) * 2
         mask_data += pred_mask1.astype(np.uint8)
@@ -482,8 +493,19 @@ class Addon(clickpoints.Addon):
 
 
     def set_ellipse(self, im, mtype, ellipse):
-        self.db.setEllipse(image=im, type=mtype, x=ellipse[0][1], y=ellipse[0][0],
-                           width=ellipse[1][0], height=ellipse[1][1], angle=ellipse[2])
+        pix_size = self.pixel_size*1e6
+        text = "irregularity:%s\nsolidity%s"%(str(np.round(ellipse["irregularity"], 2)), str(np.round(ellipse["solidity"], 2)))
+        filtered = ~((ellipse["solidity"] > 0.96) & (ellipse["irregularity"] < 1.06))
+        if filtered and self.note_filtered:
+            el = self.db.setEllipse(image=im, type=mtype, x=ellipse["x_pos"], y=ellipse["y_pos"],
+                                    width=0, height=0, angle=0, text=text)
+        elif not filtered:
+            el = self.db.setEllipse(image=im, type=mtype, x=ellipse["x_pos"], y=ellipse["y_pos"],
+                               width=ellipse["long_axis"]/pix_size, height=ellipse["short_axis"]/pix_size, angle=ellipse["angle"], text=text)
+        else:
+            return
+
+
         #self.cp.centerOn(self.data.x[nearest_point], self.data.y[nearest_point])
     # run in a separate thread to keep clickpoints gui responsive // now using QThread and stuff
 
