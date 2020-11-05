@@ -1,1 +1,1 @@
-SegmenationEvaluation
+SegmentationEvaluator
