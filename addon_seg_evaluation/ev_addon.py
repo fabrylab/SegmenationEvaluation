@@ -142,7 +142,7 @@ class Addon(clickpoints.Addon):
         self.exp_db_mask = None
         self.export_db_path = "/home/user/Desktop/2020_Deformation_Cytometer/network_problems/network_problems.cdb"
         self.export_db_path_mask = "/home/user/Desktop/2020_Deformation_Cytometer/network_problems_illustration2/network_problems_mask.cdb"
-        self.setup_additonal_databases_wrapper(db_name=self.export_db_path, db_name_illustration=self.export_db_path_mask)
+        #self.setup_additonal_databases_wrapper(db_name=self.export_db_path, db_name_illustration=self.export_db_path_mask)
 
         self.current_positions = []
         self.curr_pos_index = 0
@@ -373,6 +373,8 @@ class Addon(clickpoints.Addon):
             self.predict(f)
 
     def export(self, filename="", illustration=False):
+        if not os.path.exists(filename):
+            set_up_additional_databases(self, filename, illustration=illustration)
 
         folder = os.path.split(filename)[0]
         frame = self.cp.getCurrentFrame()
