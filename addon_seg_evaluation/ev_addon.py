@@ -156,7 +156,7 @@ class Addon(clickpoints.Addon):
         self.edge_dist = 15 # in µm
         self.channel_width = 0
 
-        self.solidity_threshold =  0.96
+        self.solidity_threshold = 0.96
         self.irregularity_threshold = 1.06
 
         self.note_filtered =  True # write irregularity and solidtiy down for cells that would have been filtered out by these thresholds
@@ -290,7 +290,10 @@ class Addon(clickpoints.Addon):
                     self.notes_txt_mask.close()
             self.exp_db_mask, self.notes_txt_mask = set_up_additional_databases(self, db_name_illustration, illustration=True)
 
-    def files_selected(self,obj=[0]):
+    def files_selected(self, obj=[0]):
+        self.file1 =  self.layout_find_files1.files
+        self.file2 =  self.layout_find_files2.files
+
         try:
             frame = self.cp.getCurrentFrame()
         except AttributeError:
