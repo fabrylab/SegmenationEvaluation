@@ -12,7 +12,7 @@ class Segmentation():
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Desktop/2020_Deformation_Cytometer/models_local/weights_andy_spatial/andyUnet_andy_spatial_weighting_w2_10_w3_20_n200__20201022-120838.h5"
+        network_path = "/home/user/Desktop/2020_Deformation_Cytometer/models_local/background_weighting_with_custom_function/Unet_andy_Unet_class_weight_like_cw0_3_20201109-215523.h5"
         self.unet.load_weights(network_path)
 
         self.pixel_size = pixel_size
@@ -31,3 +31,4 @@ class Segmentation():
         prediction_mask = prob_map > 0.5
         cells = mask_to_cells(prediction_mask, img, self.config, self.r_min, self.frame_data, self.edge_dist)
         return prediction_mask, cells, prob_map
+

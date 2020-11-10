@@ -1,18 +1,17 @@
-
 import numpy as np
 from addon_seg_evaluation.UNETmodel import UNet
 from deformationcytometer.detection.includes.regionprops import mask_to_cells
 
 
+
 class Segmentation():
 
-    def __init__(self, img_shape=None, pixel_size=None, r_min=None, frame_data=None, edge_dist=15, channel_width=0,
-                 **kwargs):
+    def __init__(self, img_shape=None, pixel_size=None, r_min=None, frame_data=None, edge_dist=15, channel_width=0, **kwargs):
         # rmin in µm
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Desktop/2020_Deformation_Cytometer/models_local/weights_andy_spatial/andyUnet_andy_spatial_weighting_w2_10_w3_20_n200__20201022-120838.h5"
+        network_path ="/home/user/Downloads/Unet_andy_Unet_class_spatial weight_wb0_7_20201110-091018.h5"
         self.unet.load_weights(network_path)
 
         self.pixel_size = pixel_size

@@ -49,7 +49,7 @@ import importlib.util
 from PIL import Image
 from tqdm import tqdm
 from addon_seg_evaluation.base_segmentation_classes import Segmentation, FromOtherDB
-
+from peewee import IntegrityError
 
 
 class SetFile(QtWidgets.QHBoxLayout):
@@ -144,6 +144,8 @@ class Addon(clickpoints.Addon):
 
         self.current_positions = []
         self.curr_pos_index = 0
+
+        self.set_probability_map = True
 
 
         # TODO load this from config // at least try to
@@ -453,7 +455,8 @@ class Addon(clickpoints.Addon):
             return None
 
     def predict(self, frame):
-
+        prob_map1 = None
+        prob_map2 = None
 
         # loading the image
         db_im = self.db.getImage(frame=frame)
@@ -463,15 +466,25 @@ class Addon(clickpoints.Addon):
 
         # making the predicition
         if not isinstance(self.Seg1, FromOtherDB):
-            pred_mask1, ellipses1 = self.Seg1.segmentation(image)
+            res1 = self.Seg1.segmentation(image)
         else:
-            pred_mask1, ellipses1 = self.Seg1.getMaskEllipse(frame)
+            re1 = self.Seg1.getMaskEllipse(frame)
         if not isinstance(self.Seg2, FromOtherDB):
-            pred_mask2, ellipses2 = self.Seg2.segmentation(image)
+            res2 = self.Seg2.segmentation(image)
         else:
-            pred_mask2, ellipses2 = self.Seg2.getMaskEllipse(frame)
+            res2 = self.Seg2.getMaskEllipse(frame)
+        if len(res1) == 2:
+            pred_mask1, ellipses1 = res1
+        else:
+            pred_mask1, ellipses1, prob_map1 = res1
+        if len(res2) == 2:
+            pred_mask2, ellipses2 = res2
+        else:
+            pred_mask2, ellipses2, prob_map2 = res2
 
-
+        if self.set_probability_map:
+            self.add_prob_map(prob_map1, frame, layer="segmentation 1")
+            self.add_prob_map(prob_map2, frame, layer="segmentation 2")
 
         # writing prediction to database
         mask_data = pred_mask2.astype(np.uint8) * 2
@@ -486,6 +499,23 @@ class Addon(clickpoints.Addon):
         self.cp.reloadMarker(frame=frame)
         self.cp.reloadMask()
 
+    def add_prob_map(self, prob_map, frame, layer=""):
+        if not prob_map is None:
+            folder = os.path.split(self.db._database_filename)[0]
+            seg_id = int(layer[-1])
+            filename = os.path.join(folder, "%dprob_map%d.tiff"%(frame,seg_id))
+            Image.fromarray((prob_map * 255).astype(np.uint8)).save(filename)
+            layers = [l.name for l in self.db.getLayers()]
+            paths = [p.path for p in self.db.getPaths()]
+            if folder not in paths:
+                self.db.setPath(folder)
+            path_obj = self.db.getPaths(path_string=folder)[0]
+            if not layer in layers:
+                new_layer = self.db.setLayer(layer, base_layer=layers[0])
+            try:
+                self.db.setImage(filename=filename, sort_index=frame, layer=layer, path=path_obj)
+            except IntegrityError:
+                return
 
     def find_unique_objects(self, mask_pred):
         labeled = label(mask_pred > 0) # this merges overlapping areas and stuff

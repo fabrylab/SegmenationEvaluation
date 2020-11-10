@@ -23,9 +23,11 @@ class Segmentation():
         self.config["pixel_size_m"] = pixel_size
 
     def segmentation(self, img):
-            if len(img.shape) == 3:
-                img = img[:,:,0]
-            img = (img - np.mean(img)) / np.std(img).astype(np.float32)
-            prediction_mask = self.unet.predict(img[None, :, :, None])[0, :, :, 0] > 0.5
-            cells = mask_to_cells(prediction_mask, img, self.config, self.r_min, self.frame_data, self.edge_dist)
-            return prediction_mask, cells
+        if len(img.shape) == 3:
+            img = img[:, :, 0]
+        img = (img - np.mean(img)) / np.std(img).astype(np.float32)
+        prob_map = self.unet.predict(img[None, :, :, None])[0, :, :, 0]
+        prediction_mask = prob_map > 0.5
+        cells = mask_to_cells(prediction_mask, img, self.config, self.r_min, self.frame_data, self.edge_dist)
+        return prediction_mask, cells, prob_map
+
