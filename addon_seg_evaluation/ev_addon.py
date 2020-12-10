@@ -65,6 +65,7 @@ class SetFile(QtWidgets.QHBoxLayout):
         #self.folder = os.getcwd()
         # line edit holding the currently selected folder 1
         self.line_edit_folder = QtWidgets.QLineEdit(self.files)
+
         self.addWidget(self.line_edit_folder, stretch=4)
 
         # button to browse folders
@@ -146,15 +147,18 @@ class Addon(clickpoints.Addon):
         self.curr_pos_index = 0
 
         self.set_probability_map = True
-
-
+        # QThread Worker, that is not running yet
+        self.thread = Worker(self, run_function=None)
+        self.thread.started.connect(self.switch_predict_all_text)
+        self.thread.finished.connect(self.switch_predict_all_text)
+        self.stop = False
         # TODO load this from config // at least try to
         self.magnification = 40
         self.coupler = 0.5
         self.pixel_size_camera = 6.9
         self.pixel_size = self.pixel_size_camera/(self.magnification * self.coupler)
         self.pixel_size  *= 1e-6  #conversion to meter
-        self.r_min = 6 # in µm
+        self.r_min = 2 # in µm
         self.edge_dist = 15 # in µm
         self.channel_width = 0
 
@@ -198,8 +202,10 @@ class Addon(clickpoints.Addon):
 
         self.layout_find_files1 =  SetFile(self.file1)
         self.layout_find_files1.fileSeleted.connect(partial(self.files_selected, obj=[1]))
+        self.layout_find_files1.line_edit_folder.textEdited.connect(partial(self.files_selected, obj=[1], from_field=True))
         self.layout_find_files2 = SetFile(self.file2)
         self.layout_find_files2.fileSeleted.connect(partial(self.files_selected, obj=[2]))
+        self.layout_find_files2.line_edit_folder.textEdited.connect(partial(self.files_selected, obj=[2], from_field=True))
         self.layout_evaluate = QtWidgets.QHBoxLayout()
         # trying to load the Segmentation functions right now
         self.files_selected(obj=[1,2])
@@ -257,7 +263,7 @@ class Addon(clickpoints.Addon):
         self.export_mask_button = QtWidgets.QPushButton("export illustration")
         self.export_mask_button.clicked.connect(partial(self.export, filename=self.export_db_path_mask, illustration=True))
         self.all_frames_button = QtWidgets.QPushButton("predict all frames")
-        self.all_frames_button.clicked.connect(partial(self.start_thread, run_function=self.predict_all))
+        self.all_frames_button.clicked.connect(partial(self.start_thread, self.predict_all))
 
         self.export_layout.addWidget(self.export_mask_button)
         self.export_layout.addWidget(self.all_frames_button)
@@ -292,16 +298,19 @@ class Addon(clickpoints.Addon):
                     self.notes_txt_mask.close()
             self.exp_db_mask, self.notes_txt_mask = set_up_additional_databases(self, db_name_illustration, illustration=True)
 
-    def files_selected(self, obj=[0]):
-        self.file1 =  self.layout_find_files1.files
-        self.file2 =  self.layout_find_files2.files
-
+    def files_selected(self, obj=[0], from_field=False):
+        if from_field:
+            self.file1 =  self.layout_find_files1.line_edit_folder.text()
+            self.file2 =  self.layout_find_files2.line_edit_folder.text()
+        else:
+            self.file1 =  self.layout_find_files1.files
+            self.file2 =  self.layout_find_files2.files
         try:
             frame = self.cp.getCurrentFrame()
         except AttributeError:
             frame = 0
         img_shape = self.db.getImage(frame=frame).getShape()
-        if 1 in obj and not self.file1 == "":
+        if 1 in obj and not self.file1 in [""," "]:
             self.file1 = self.layout_find_files1.files
             self.settings.setValue("file1", self.file1)
             if self.file1.endswith(".cdb"):
@@ -316,7 +325,7 @@ class Addon(clickpoints.Addon):
                     except OSError as e:
                         print(e)
 
-        if 2 in obj and not self.file2 == "":
+        if 2 in obj and not self.file2 in [""," "]:
             self.file2 = self.layout_find_files2.files
             self.settings.setValue("file2", self.file2)
             if self.file2.endswith(".cdb"):
@@ -330,6 +339,11 @@ class Addon(clickpoints.Addon):
                         print("succesfully loaded %s"%self.file2)
                     except OSError as e:
                         print(e)
+        if 1 in obj and self.file1 in [""," "]:
+            self.Seg1 = None
+        if 2 in obj and self.file2 in [""," "]:
+            self.Seg2 = None
+
 
         self.settings.sync()
 
@@ -381,9 +395,12 @@ class Addon(clickpoints.Addon):
 
 
     def predict_all(self):
+        self.stop = False
         curr_frame = self.cp.getCurrentFrame()
         total_frames =self.db.getImageCount()
         for f in tqdm(range(curr_frame, total_frames,1)):
+            if self.stop:
+                break
             self.predict(f)
 
     def export(self, filename="", illustration=False):
@@ -460,6 +477,11 @@ class Addon(clickpoints.Addon):
     def predict(self, frame):
         prob_map1 = None
         prob_map2 = None
+        pred_mask1 = None
+        pred_mask2 = None
+        ellipses1 = []
+        ellipses2 = []
+
 
         # loading the image
         db_im = self.db.getImage(frame=frame)
@@ -468,22 +490,35 @@ class Addon(clickpoints.Addon):
         image = db_im.data
 
         # making the predicition
-        if not isinstance(self.Seg1, FromOtherDB):
+        if self.Seg1 is None:
+            res1 = None
+        elif isinstance(self.Seg1, FromOtherDB):
+            res1 = self.Seg1.getMaskEllipse(frame)
+        else:
             res1 = self.Seg1.segmentation(image)
-        else:
-            re1 = self.Seg1.getMaskEllipse(frame)
-        if not isinstance(self.Seg2, FromOtherDB):
-            res2 = self.Seg2.segmentation(image)
-        else:
+
+        if self.Seg2 is None:
+            res2 = None
+        elif isinstance(self.Seg2, FromOtherDB):
             res2 = self.Seg2.getMaskEllipse(frame)
-        if len(res1) == 2:
-            pred_mask1, ellipses1 = res1
         else:
-            pred_mask1, ellipses1, prob_map1 = res1
-        if len(res2) == 2:
-            pred_mask2, ellipses2 = res2
+            res2 = self.Seg2.segmentation(image)
+
+
+        if not res1 is None:
+            if len(res1) == 2:
+                pred_mask1, ellipses1 = res1
+            else:
+                pred_mask1, ellipses1, prob_map1 = res1
         else:
-            pred_mask2, ellipses2, prob_map2 = res2
+            pred_mask1 = np.zeros(image.shape)
+        if not res2 is None:
+            if len(res2) == 2:
+                pred_mask2, ellipses2 = res2
+            else:
+                pred_mask2, ellipses2, prob_map2 = res2
+        else:
+            pred_mask2 = np.zeros(image.shape)
 
         if self.set_probability_map:
             self.add_prob_map(prob_map1, frame, layer="segmentation 1")
@@ -527,12 +562,14 @@ class Addon(clickpoints.Addon):
 
     def set_ellipse(self, im, mtype, ellipse):
         pix_size = self.pixel_size*1e6
-        text = "irregularity:%s\nsolidity%s"%(str(np.round(ellipse["irregularity"], 2)), str(np.round(ellipse["solidity"], 2)))
+        text = "irregularity: %s\nsolidity: %s"%(str(np.round(ellipse["irregularity"], 2)), str(np.round(ellipse["solidity"], 2)))
         filtered = ~((ellipse["solidity"] > 0.96) & (ellipse["irregularity"] < 1.06))
+        strain = (ellipse["long_axis"] - ellipse["short_axis"]) / np.sqrt(ellipse["long_axis"] * ellipse["short_axis"])
         if filtered and self.note_filtered:
             el = self.db.setEllipse(image=im, type=mtype, x=ellipse["x_pos"], y=ellipse["y_pos"],
                                     width=0, height=0, angle=0, text=text)
         elif not filtered:
+            text = "strain: %s\n"%np.round(strain,2) + text
             el = self.db.setEllipse(image=im, type=mtype, x=ellipse["x_pos"], y=ellipse["y_pos"],
                                width=ellipse["long_axis"]/pix_size, height=ellipse["short_axis"]/pix_size, angle=ellipse["angle"], text=text)
         else:
@@ -542,9 +579,27 @@ class Addon(clickpoints.Addon):
         #self.cp.centerOn(self.data.x[nearest_point], self.data.y[nearest_point])
     # run in a separate thread to keep clickpoints gui responsive // now using QThread and stuff
 
+    def switch_predict_all_text(self):
+        if self.thread.isRunning():
+            self.all_frames_button.setText("stop")
+            self.all_frames_button.clicked.connect(self.stop_thread)
+        else:
+            self.all_frames_button.setText("predict all frames")
+            self.all_frames_button.clicked.connect(partial(self.start_thread, run_function=self.predict_all))
+
+    def stop_thread(self):
+        self.stop = True
+        self.thread.quit()
+
+
     def start_thread(self, run_function=None):
-        self.thread = Worker(self, run_function=run_function)
+        self.thread.run_function = run_function
         self.thread.start()  # starting thread
+
+
+
+
+
         #self.thread.finished.connect(self.reload_all)  # connecting function on thread finish
 
 class Worker(QtCore.QThread):
@@ -553,39 +608,13 @@ class Worker(QtCore.QThread):
     def __init__(self, main, parent=None, run_function=None):
         QtCore.QThread.__init__(self, parent)
         self.main = main
-        if run_function is None:
-            self.run_function = self.main.start
-        else:
-            self.run_function = run_function
+        self.run_function = run_function
 
     def run(self):
         self.run_function()
-
-    '''
-    def add_file(self):
-
-        self.scrollAreaWidgetContents = QtWidgets.QWidget()  # adding grid layout to extra widget to allow for scrolling
-        self.disp_file_layout = QtWidgets.QGridLayout(self.scrollAreaWidgetContents)
-        self.disp_file_layout.setRowStretch(10, 3)
-        self.file_fields = {}
-        for i, file in enumerate(self.files):
-            edit = QtWidgets.QLineEdit(file)
-            remove_button = QtWidgets.QPushButton("remove")
-            remove_button.clicked.connect(partial(self.remove_file_field,i))
-            self.disp_file_layout.addWidget(edit, i, 0)
-            self.disp_file_layout.addWidget(remove_button, i, 1)
-            self.file_fields[i] = [edit, remove_button]
-        self.scroll.setWidget(self.scrollAreaWidgetContents)
-        self.settings.setValue("files",self.files)
-    '''
-
-    '''
-    def remove_file_field(self,i=0):
-        self.files.pop(i)
-        self.add_file()
-
-    '''
-
     def load_script(self):
         pass
+
+
+
 

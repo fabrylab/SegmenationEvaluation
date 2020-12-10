@@ -1,5 +1,6 @@
 import numpy as np
 from addon_seg_evaluation.UNETmodel import UNet
+from addon_seg_evaluation.base_segmentation_classes import mask_to_cells_edge
 from deformationcytometer.detection.includes.regionprops import mask_to_cells
 
 
@@ -11,7 +12,7 @@ class Segmentation():
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Downloads/Unet_andy_Unet_class_spatial weight_dil_40_wb0_7_20201110-164714.h5"
+        network_path ="/home/user/Desktop/2020_Deformation_Cytometer/local_training/Unet_test_reproducability_1_20201203-104240.h5"
         self.unet.load_weights(network_path)
 
         self.pixel_size = pixel_size
@@ -28,5 +29,9 @@ class Segmentation():
         img = (img - np.mean(img)) / np.std(img).astype(np.float32)
         prob_map = self.unet.predict(img[None, :, :, None])[0, :, :, 0]
         prediction_mask = prob_map > 0.5
-        cells = mask_to_cells(prediction_mask, img, self.config, self.r_min, self.frame_data, self.edge_dist)
+        cells, prediction_mask = mask_to_cells_edge(prediction_mask, img, self.config, self.r_min, self.frame_data, self.edge_dist,return_mask=True)
         return prediction_mask, cells, prob_map
+
+
+
+

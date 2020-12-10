@@ -11,7 +11,7 @@ class Segmentation():
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Desktop/2020_Deformation_Cytometer/models_local/weights_andy_transfer_learning1/andyUnet_andy_transfer_long_n200__20201006-155443.h5"
+        network_path ="/home/user/Software/Deformation_Cytometer/deformationcytometer/detection/includes/v0.3/Unet_transfer_immune_cells.h5"
         self.unet.load_weights(network_path)
 
         self.pixel_size = pixel_size

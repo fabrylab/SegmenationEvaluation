@@ -11,7 +11,7 @@ class Segmentation():
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Downloads/Unet_andy_Unet_class_spatial weight_dil_40_wb0_7_20201110-164714.h5"
+        network_path ="/home/user/Downloads/Unet_transfer_immune_cells_n1504_20201117-205645.h5"
         self.unet.load_weights(network_path)
 
         self.pixel_size = pixel_size

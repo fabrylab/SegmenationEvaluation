@@ -1,38 +1,9 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Mar 12 09:28:22 2020
-@author: Ben Fabry
-"""
-# this program reads the frames of an avi video file, averages all images,
-# and stores the normalized image as a floating point numpy array
-# in the same directory as the extracted images, under the name "flatfield.npy"
-#
-# The program then loops again through all images of the video file,
-# identifies cells, extracts the cell shape, fits an ellipse to the cell shape,
-# and stores the information on the cell's centroid position, long and short axis,
-# angle (orientation) of the long axis, and bounding box widht and height
-# in a text file (result_file.txt) in the same directory as the video file.
 
 import numpy as np
-from skimage import feature
 from skimage.filters import gaussian
-from skimage.transform import rescale, resize
 from scipy.ndimage import morphology
-from skimage.morphology import area_opening
 from skimage.measure import label, regionprops
-from skimage.transform import resize
-import os, sys
-import imageio
-import json
-from pathlib import Path
-import tqdm
-import matplotlib.pyplot as plt
-
-import matplotlib.gridspec as gridspec
-import time
-import cv2
 import scipy
-from matplotlib.patches import Ellipse
 from skimage.transform import downscale_local_mean
 
 def std_convoluted(image, N):
