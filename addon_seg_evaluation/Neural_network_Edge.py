@@ -13,7 +13,7 @@ class Segmentation():
         # channel_width in pixel ?
         # pixel_size in m / not in mµ!!
         self.unet = UNet().create_model((img_shape[0], img_shape[1], 1), 1, d=8)
-        network_path ="/home/user/Software/Deformation_Cytometer/deformationcytometer/detection/includes/v0.4/Unet_edge_only_immune.h5"
+        network_path ="/home/andreas/Software/Deformation_Cytometer/deformationcytometer/detection/includes/v0.4/Unet_edge_only_immune.h5"
         #/home/user/Desktop/2020_Deformation_Cytometer/local_training/Unet_continued2_edge_only_n200_20201124-013322.h5
         self.unet.load_weights(network_path)
 

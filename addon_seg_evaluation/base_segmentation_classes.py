@@ -6,7 +6,7 @@ from deformationcytometer.detection.includes.regionprops import mask_to_cells
 from skimage.morphology import binary_closing, remove_small_holes, label
 from skimage.measure import regionprops
 import fill_voids
-from deformationcytometer.detection.includes.andy_data_handling import preprocess_batch
+from Neural_Network.data_handling import preprocess_batch
 
 def mask_to_cells_edge(prediction_mask, im, config, r_min, frame_data, edge_dist=15, return_mask=False):
     r_min_pix = r_min / config["pixel_size_m"] / 1e6
